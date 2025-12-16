@@ -13,7 +13,8 @@ async function fetchResponse(data, sort_method) {
   const payload = { data, sort_method };
   const endpoints = [
     '/.netlify/functions/recommendify', // Netlify dev / deployed path
-    '/server', // Fallback to local Flask server (python main.py)
+    '/server', // Netlify redirect or same-origin Flask route
+    'http://localhost:5500/server', // Explicit Flask fallback when running python main.py locally
   ];
 
   for (const endpoint of endpoints) {
