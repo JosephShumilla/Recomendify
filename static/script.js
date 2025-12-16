@@ -8,19 +8,24 @@ function linkChecker(string) {
   return regex.test(string);
 };
 
-// Fetches data from python server
+// Fetches data from the Netlify serverless function
 function fetchResponse(data, sort_method) {
-  return fetch('/server', {
+  return fetch('/.netlify/functions/recommendify', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
     },
     body: JSON.stringify({ data, sort_method }),
   })
-  .then(response => response.json())
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Request failed');
+    }
+    return response.json();
+  })
   .then(data => {
-	console.log(data);
-	showResults(data.recommendations);
+        console.log(data);
+        showResults(data.recommendations);
   })
   .catch(error => {
     console.error('Error:', error);

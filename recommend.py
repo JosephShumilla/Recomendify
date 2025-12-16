@@ -1,10 +1,16 @@
 import os
+from pathlib import Path
+
+import pandas as pd
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import os
+
 import dataset
-import pandas as pd
 import sorting
+
+BASE_DIR = Path(__file__).resolve().parent
+DATASET_PATH = BASE_DIR / "data" / "small_data.csv"
+
 
 class recommender:
     def __init__(self, playlist_link, sort='heap'):
@@ -88,7 +94,7 @@ class recommender:
             # Add the track data to the tracks_data list
             tracks_data.append(track_data)
         # Calculates the cosine similarity between the dataset and the playlist
-        simTracks = dataset.generate_similarity_matrix('data/small_data.csv', tracks_data)
+        simTracks = dataset.generate_similarity_matrix(str(DATASET_PATH), tracks_data)
         # Converts the DataFrame to a dictionary for sorting
         rows = simTracks.to_dict(orient='records')
         if (self.sort == 'heap'):
