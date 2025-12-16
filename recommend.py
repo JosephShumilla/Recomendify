@@ -17,13 +17,13 @@ class recommender:
        # Retrieve your client ID and client secret from environment variables
         c_id = os.getenv("SPOTIFY_CLIENT_ID")
         c_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-        c_uri = os.getenv("SPOTIFY_REDIRECT_URI") 
+        c_uri = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback")
         scope = "playlist-read-private"
         cache_path = os.path.join(os.getcwd(), "token.txt")
         # Instantiates the Spotipy instance used for getting playlist info
-        self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope, client_id=c_id, 
-                                                       client_secret=c_secret, 
-                                                       redirect_uri="http://localhost/", 
+        self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope, client_id=c_id,
+                                                       client_secret=c_secret,
+                                                       redirect_uri=c_uri,
                                                        cache_path=cache_path))
         # Extracts playlist_id from the given link
         playlist_id = playlist_link.split("/playlist/")[-1].split('?')[0]

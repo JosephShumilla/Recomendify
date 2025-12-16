@@ -23,7 +23,7 @@ If you don’t have Spotify API credentials yet, create a free developer app:
 
 1. Sign in at https://developer.spotify.com/dashboard (a regular Spotify account works) and click **Create app**.
 2. Choose any name/description, select **Web API**, and finish creation.
-3. Open the app, go to **Settings**, and add a Redirect URI such as `http://localhost/` for local testing (add your Netlify site URL later for production). Click **Save**.
+3. Open the app, go to **Settings**, and add a Redirect URI exactly matching what your app uses, e.g. `http://localhost:8888/callback` for local testing (Spotify rejects bare `http://localhost` as insecure). Click **Save**.
 4. In the app’s **Settings** → **Basic Information**, copy the **Client ID** and click **View client secret** to copy the **Client Secret** (regenerate if it is hidden/expired).
 5. Use these values in your `.env` file (or Netlify environment variables) as `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_REDIRECT_URI`.
 
@@ -42,7 +42,7 @@ Follow these quick steps to run the full site and serverless function locally be
    npm install -g netlify-cli
    netlify login
    ```
-3. Provide Spotify credentials locally so the function can authenticate. The easiest way is to copy `.env.example` to `.env` and fill in the values:
+3. Provide Spotify credentials locally so the function can authenticate. The easiest way is to copy `.env.example` to `.env` and fill in the values (keep `SPOTIFY_REDIRECT_URI` as `http://localhost:8888/callback` so it matches the Netlify dev server):
    ```bash
    cp .env.example .env
    # edit .env with your Spotify app values
@@ -71,7 +71,7 @@ Follow these quick steps to run the full site and serverless function locally be
 2. Add your Spotify credentials as Netlify environment variables (Dashboard → Site configuration → Environment variables):
    - `SPOTIFY_CLIENT_ID`
    - `SPOTIFY_CLIENT_SECRET`
-   - `SPOTIFY_REDIRECT_URI` (e.g. `http://localhost/`)
+   - `SPOTIFY_REDIRECT_URI` (e.g. `http://localhost:8888/callback`)
 3. Deploy the site (this repository already contains `netlify.toml` and the serverless function):
    ```bash
    netlify deploy --build --prod
