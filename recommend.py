@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyClientCredentials
 
 import dataset
 import sorting
@@ -14,17 +14,25 @@ DATASET_PATH = BASE_DIR / "data" / "small_data.csv"
 
 class recommender:
     def __init__(self, playlist_link, sort='heap'):
-       # Retrieve your client ID and client secret from environment variables
+        # Retrieve your client ID and client secret from environment variables
         c_id = os.getenv("SPOTIFY_CLIENT_ID")
         c_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-        c_uri = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback")
-        scope = "playlist-read-private"
-        cache_path = os.path.join(os.getcwd(), "token.txt")
+
+        # Bail out early if credentials are missing
+        if not c_id or not c_secret:
+            self.target = 'failure'
+            self.sp = None
+            self.sort = sort
+            self.error = "Missing Spotify credentials"
+            return
+
         # Instantiates the Spotipy instance used for getting playlist info
-        self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope, client_id=c_id,
-                                                       client_secret=c_secret,
-                                                       redirect_uri=c_uri,
-                                                       cache_path=cache_path))
+        self.sp = spotipy.Spotify(
+            auth_manager=SpotifyClientCredentials(
+                client_id=c_id,
+                client_secret=c_secret,
+            )
+        )
         # Extracts playlist_id from the given link
         playlist_id = playlist_link.split("/playlist/")[-1].split('?')[0]
         # Defines the sort method of the class
@@ -33,7 +41,8 @@ class recommender:
         try:
             self.target = self.sp.playlist(playlist_id)
         except spotipy.SpotifyException as e:
-            self.target = 'failure' 
+            self.target = 'failure'
+            self.error = str(e)
 
     def get_recommendations(self) -> list:
         # Exits if playlist is empty
