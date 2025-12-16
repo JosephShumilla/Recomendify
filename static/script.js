@@ -9,30 +9,41 @@ function linkChecker(string) {
 };
 
 // Fetches data from the Netlify serverless function
-function fetchResponse(data, sort_method) {
-  return fetch('/.netlify/functions/recommendify', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ data, sort_method }),
-  })
-  .then(async response => {
-    const payload = await response.json().catch(() => ({ message: 'Unexpected response' }));
-    if (!response.ok) {
-      const message = payload?.message || 'Request failed';
-      throw new Error(message);
+async function fetchResponse(data, sort_method) {
+  try {
+    const response = await fetch('/.netlify/functions/recommendify', {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data, sort_method }),
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    let payload;
+
+    if (contentType.includes('application/json')) {
+      payload = await response.json();
+    } else {
+      const text = await response.text();
+      payload = { message: text || 'Unexpected response from server' };
     }
-    return payload;
-  })
-  .then(data => {
-        console.log(data);
-        showResults(data.recommendations);
-  })
-  .catch(error => {
+
+    if (!response.ok) {
+      const message = payload?.message || payload?.detail || 'Request failed';
+      throw new Error(`${message} (status ${response.status})`);
+    }
+
+    if (!payload?.recommendations?.length) {
+      throw new Error('No recommendations were returned for this playlist.');
+    }
+
+    console.log(payload);
+    showResults(payload.recommendations);
+  } catch (error) {
     console.error('Error:', error);
     handleError(error?.message || 'Something went wrong. Please try again.');
-  });
+  }
 }
 
 // Performs fetch on submit if the link is valid, else the user is shown red
