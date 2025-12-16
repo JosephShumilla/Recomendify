@@ -11,11 +11,26 @@ function linkChecker(string) {
 // Fetches data from the Netlify serverless function (falls back to the Flask server)
 async function fetchResponse(data, sort_method) {
   const payload = { data, sort_method };
-  const endpoints = [
-    '/.netlify/functions/recommendify', // Netlify dev / deployed path
-    '/server', // Netlify redirect or same-origin Flask route
-    'http://localhost:5500/server', // Explicit Flask fallback when running python main.py locally
-  ];
+
+  // Prefer endpoints that match the current origin to avoid mixed-content failures
+  const { protocol, hostname, port } = window.location;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isFlask = isLocalhost && port === '5500';
+
+  const endpoints = [];
+
+  // Netlify (prod/dev) first when running through Netlify
+  if (!isFlask) {
+    endpoints.push('/.netlify/functions/recommendify');
+  }
+
+  // Same-origin Flask route works for both python main.py and Netlify redirect
+  endpoints.push('/server');
+
+  // Only try the explicit localhost fallback when the page itself is served over http
+  if (protocol === 'http:' && !isFlask && isLocalhost) {
+    endpoints.push('http://localhost:5500/server');
+  }
 
   for (const endpoint of endpoints) {
     try {
