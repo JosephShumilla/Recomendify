@@ -17,6 +17,16 @@ Here is the [link](https://www.kaggle.com/datasets/amitanshjoshi/spotify-1millio
 
 We also found use in a general pipeline for building a content-based recommendation system [here](https://towardsdatascience.com/part-iii-building-a-song-recommendation-system-with-spotify-cf76b52705e7)
 
+## Creating a Spotify app (to obtain Client ID/Secret)
+
+If you don’t have Spotify API credentials yet, create a free developer app:
+
+1. Sign in at https://developer.spotify.com/dashboard (a regular Spotify account works) and click **Create app**.
+2. Choose any name/description, select **Web API**, and finish creation.
+3. Open the app, go to **Settings**, and add a Redirect URI such as `http://localhost/` for local testing (add your Netlify site URL later for production). Click **Save**.
+4. In the app’s **Settings** → **Basic Information**, copy the **Client ID** and click **View client secret** to copy the **Client Secret** (regenerate if it is hidden/expired).
+5. Use these values in your `.env` file (or Netlify environment variables) as `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_REDIRECT_URI`.
+
 ## Local testing with Netlify Dev
 
 Follow these quick steps to run the full site and serverless function locally before deploying.
