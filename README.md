@@ -19,35 +19,37 @@ We also found use in a general pipeline for building a content-based recommendat
 
 ## Local testing with Netlify Dev
 
-You can run the serverless function and static site locally to verify the deployment flow without pushing to Netlify.
+Follow these quick steps to run the full site and serverless function locally before deploying.
 
-1. Install the Python dependencies (a virtualenv is recommended):
+1. Install Python dependencies (virtualenv recommended):
    ```bash
    python -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Install the Netlify CLI and log in:
+2. Install the Netlify CLI and log in once (needed for `netlify dev`):
    ```bash
    npm install -g netlify-cli
    netlify login
    ```
-3. Configure the Spotify environment variables used by the Python recommender (either with `netlify env:set` or a local `.env` file):
-   - `SPOTIFY_CLIENT_ID`
-   - `SPOTIFY_CLIENT_SECRET`
-   - `SPOTIFY_REDIRECT_URI` (e.g. `http://localhost/`)
-4. Start the local dev server from the repository root:
+3. Provide Spotify credentials locally so the function can authenticate. The easiest way is to copy `.env.example` to `.env` and fill in the values:
+   ```bash
+   cp .env.example .env
+   # edit .env with your Spotify app values
+   ```
+   Alternatively, run `netlify env:set SPOTIFY_CLIENT_ID ...` and `netlify env:set SPOTIFY_CLIENT_SECRET ...` to save them to the local Netlify dev environment.
+4. Start the dev server from the repository root (this also runs the Python function):
    ```bash
    netlify dev
    ```
-   This serves `index.html` and proxies API calls to `/.netlify/functions/recommendify` with the bundled dataset at `data/small_data.csv`.
-5. Exercise the API directly with curl (replace the playlist URL with one you own that has enough tracks):
+   The static site will be at http://localhost:8888/ and the API will be proxied at http://localhost:8888/.netlify/functions/recommendify using `data/small_data.csv`.
+5. Test the function directly with curl (replace the playlist URL with one of yours):
    ```bash
    curl -X POST http://localhost:8888/.netlify/functions/recommendify \
         -H 'Content-Type: application/json' \
         -d '{"data": "https://open.spotify.com/playlist/your-playlist-id", "sort_method": "heap"}'
    ```
-   You can also open http://localhost:8888/ in the browser while `netlify dev` is running to use the UI against the local function.
+6. Open the UI at http://localhost:8888/ while `netlify dev` is running to search tracks, submit your playlist, and view recommendations powered by the local function.
 
 ## Deploying to Netlify
 
