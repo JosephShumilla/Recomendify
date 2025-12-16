@@ -114,8 +114,8 @@ class recommender:
             # Performs merge sort
             sorting.mergeSort(rows)
             sortedTop5 = rows
-        # Gets the top 5 most similar tracks
-        sortedTop5 = pd.DataFrame(sortedTop5).head(5)
+        # Gets the top 10 most similar tracks
+        sortedTop5 = pd.DataFrame(sortedTop5).head(10)
         new_tracks_info = []
         # Gets all relevant information about each track
         for index, row in sortedTop5.iterrows():

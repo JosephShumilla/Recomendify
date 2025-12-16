@@ -24,10 +24,13 @@ async function fetchResponse(data, sort_method) {
       return;
     } catch (error) {
       const is404 = error?.status === 404;
-      const canTryNext = is404 && endpoint !== endpoints[endpoints.length - 1];
+      const isNetworkError = error?.name === 'TypeError' ||
+        (typeof error?.message === 'string' && error.message.includes('Failed to fetch'));
+      const canTryNext = (is404 || isNetworkError) && endpoint !== endpoints[endpoints.length - 1];
 
       if (canTryNext) {
-        console.warn(`Endpoint ${endpoint} returned 404, trying next fallback.`);
+        const reason = is404 ? '404' : 'network error';
+        console.warn(`Endpoint ${endpoint} failed (${reason}), trying next fallback.`);
         continue;
       }
 
@@ -89,18 +92,32 @@ document.querySelector("form#playlist-form").addEventListener("submit", (e) => {
 
 // Sets the relevant html to show data retrieved from recommendation system
 function showResults (data) {
-        reccs = data
-        reccEls = document.querySelectorAll("#recommendations-container li")
-        hasReccs = false
-        reccs.forEach((recc, i) => {
-		hasReccs = true
-		reccEls[i].querySelector("h3").textContent = recc.name
-		reccEls[i].querySelector("h4").textContent = recc.artist
-		reccEls[i].querySelector("img").src = recc.cover
-		reccEls[i].style.setProperty("--similarity", recc.similarity)
-	});
-	if (hasReccs){
-		document.body.setAttribute("data-appstate", "2");
+        const list = document.querySelector("#recommendations-list");
+        list.innerHTML = "";
+
+        data.slice(0, 10).forEach((recc) => {
+                const item = document.createElement("li");
+                item.className = "recommendation";
+                item.style.setProperty("--similarity", recc.similarity || 0);
+
+                item.innerHTML = `
+                        <img src="${recc.cover}" alt="Album cover for ${recc.name}" class="recommendation-album">
+                        <div class="recommendation-text">
+                                <h3 class="recommendation-title">${recc.name}</h3>
+                                <h4 class="recommendation-artist">${recc.artist}</h4>
+                        </div>
+                        <div class="sim-score">
+                                <svg class="sim-score" width=10 height=10>
+                                        <circle cx="50%" cy="50%" r="1em" stroke="var(--theme-sec)" fill="transparent" stroke-width=".3em"  />
+                                </svg>
+                        </div>
+                `;
+
+                list.appendChild(item);
+        });
+
+        if (list.children.length){
+                document.body.setAttribute("data-appstate", "2");
         }
         else{
                 document.body.setAttribute("data-appstate", "0")
