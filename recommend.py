@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
+
+import pandas as pd
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import os
+
 import dataset
-import pandas as pd
 import sorting
 
 class recommender:
@@ -88,7 +90,8 @@ class recommender:
             # Add the track data to the tracks_data list
             tracks_data.append(track_data)
         # Calculates the cosine similarity between the dataset and the playlist
-        simTracks = dataset.generate_similarity_matrix('data/small_data.csv', tracks_data)
+        dataset_path = Path(__file__).parent / "data" / "small_data.csv"
+        simTracks = dataset.generate_similarity_matrix(dataset_path.as_posix(), tracks_data)
         # Converts the DataFrame to a dictionary for sorting
         rows = simTracks.to_dict(orient='records')
         if (self.sort == 'heap'):
