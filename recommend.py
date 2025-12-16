@@ -14,6 +14,7 @@ DATASET_PATH = BASE_DIR / "data" / "small_data.csv"
 
 class recommender:
     def __init__(self, playlist_link, sort='heap'):
+        self.error = None
         # Retrieve your client ID and client secret from environment variables
         c_id = os.getenv("SPOTIFY_CLIENT_ID")
         c_secret = os.getenv("SPOTIFY_CLIENT_SECRET")

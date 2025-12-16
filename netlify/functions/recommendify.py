@@ -39,5 +39,13 @@ def handler(event, context):  # pylint: disable=unused-argument
     if not playlist_url:
         return _json_response(400, {"message": "Playlist URL is required"})
 
-    recommendations = recommender(playlist_url, sort_method).get_recommendations()
+    try:
+        rec = recommender(playlist_url, sort_method)
+        recommendations = rec.get_recommendations()
+    except Exception as exc:  # pragma: no cover - defensive for Netlify runtime
+        return _json_response(500, {"message": "Unexpected server error", "detail": str(exc)})
+
+    if rec.target == "failure":
+        return _json_response(400, {"message": rec.error or "Unable to process playlist"})
+
     return _json_response(200, {"recommendations": recommendations})
