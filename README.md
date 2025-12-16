@@ -17,6 +17,38 @@ Here is the [link](https://www.kaggle.com/datasets/amitanshjoshi/spotify-1millio
 
 We also found use in a general pipeline for building a content-based recommendation system [here](https://towardsdatascience.com/part-iii-building-a-song-recommendation-system-with-spotify-cf76b52705e7)
 
+## Local testing with Netlify Dev
+
+You can run the serverless function and static site locally to verify the deployment flow without pushing to Netlify.
+
+1. Install the Python dependencies (a virtualenv is recommended):
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. Install the Netlify CLI and log in:
+   ```bash
+   npm install -g netlify-cli
+   netlify login
+   ```
+3. Configure the Spotify environment variables used by the Python recommender (either with `netlify env:set` or a local `.env` file):
+   - `SPOTIFY_CLIENT_ID`
+   - `SPOTIFY_CLIENT_SECRET`
+   - `SPOTIFY_REDIRECT_URI` (e.g. `http://localhost/`)
+4. Start the local dev server from the repository root:
+   ```bash
+   netlify dev
+   ```
+   This serves `index.html` and proxies API calls to `/.netlify/functions/recommendify` with the bundled dataset at `data/small_data.csv`.
+5. Exercise the API directly with curl (replace the playlist URL with one you own that has enough tracks):
+   ```bash
+   curl -X POST http://localhost:8888/.netlify/functions/recommendify \
+        -H 'Content-Type: application/json' \
+        -d '{"data": "https://open.spotify.com/playlist/your-playlist-id", "sort_method": "heap"}'
+   ```
+   You can also open http://localhost:8888/ in the browser while `netlify dev` is running to use the UI against the local function.
+
 ## Deploying to Netlify
 
 1. Install the Netlify CLI locally and log in:
