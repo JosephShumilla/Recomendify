@@ -22,11 +22,18 @@ Follow these steps to run the web app locally using Netlify Dev with the Python 
    ```
 
 4. **Start the local Netlify Dev server from the repo root:**
-   ```bash
-   netlify dev
-   ```
-   The site will be available at `http://localhost:8888/` and the API is proxied at
-   `http://localhost:8888/.netlify/functions/recommendify`.
+    ```bash
+    netlify dev
+    ```
+    The site will be available at `http://localhost:8888/` and the API is proxied at
+    `http://localhost:8888/.netlify/functions/recommendify`.
+
+    If you prefer not to install the Netlify CLI, you can instead run the built-in Flask server:
+    ```bash
+    python main.py
+    ```
+    In this mode the UI is still served, and the frontend automatically falls back to the `/server`
+    API route exposed by the Flask app.
 
 5. **(Optional) Test the function directly with curl:**
    ```bash

@@ -8,42 +8,70 @@ function linkChecker(string) {
   return regex.test(string);
 };
 
-// Fetches data from the Netlify serverless function
+// Fetches data from the Netlify serverless function (falls back to the Flask server)
 async function fetchResponse(data, sort_method) {
-  try {
-    const response = await fetch('/.netlify/functions/recommendify', {
-      method: 'POST',
-      headers: {
-          'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ data, sort_method }),
-    });
+  const payload = { data, sort_method };
+  const endpoints = [
+    '/.netlify/functions/recommendify', // Netlify dev / deployed path
+    '/server', // Fallback to local Flask server (python main.py)
+  ];
 
-    const contentType = response.headers.get('content-type') || '';
-    let payload;
+  for (const endpoint of endpoints) {
+    try {
+      const recommendations = await makeRequest(endpoint, payload);
+      showResults(recommendations);
+      return;
+    } catch (error) {
+      const is404 = error?.status === 404;
+      const canTryNext = is404 && endpoint !== endpoints[endpoints.length - 1];
 
-    if (contentType.includes('application/json')) {
-      payload = await response.json();
-    } else {
-      const text = await response.text();
-      payload = { message: text || 'Unexpected response from server' };
+      if (canTryNext) {
+        console.warn(`Endpoint ${endpoint} returned 404, trying next fallback.`);
+        continue;
+      }
+
+      console.error('Error:', error);
+      const hint = is404
+        ? 'Start the app with "netlify dev" or "python main.py" so the API route is available.'
+        : null;
+      handleError(error?.message || hint || 'Something went wrong. Please try again.');
+      return;
     }
-
-    if (!response.ok) {
-      const message = payload?.message || payload?.detail || 'Request failed';
-      throw new Error(`${message} (status ${response.status})`);
-    }
-
-    if (!payload?.recommendations?.length) {
-      throw new Error('No recommendations were returned for this playlist.');
-    }
-
-    console.log(payload);
-    showResults(payload.recommendations);
-  } catch (error) {
-    console.error('Error:', error);
-    handleError(error?.message || 'Something went wrong. Please try again.');
   }
+}
+
+// Makes a POST request to the provided endpoint and validates the payload
+async function makeRequest(endpoint, body) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  let payload;
+
+  if (contentType.includes('application/json')) {
+    payload = await response.json();
+  } else {
+    const text = await response.text();
+    payload = { message: text || 'Unexpected response from server' };
+  }
+
+  if (!response.ok) {
+    const message = payload?.message || payload?.detail || 'Request failed';
+    const error = new Error(`${message} (status ${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
+
+  if (!payload?.recommendations?.length) {
+    throw new Error('No recommendations were returned for this playlist.');
+  }
+
+  return payload.recommendations;
 }
 
 // Performs fetch on submit if the link is valid, else the user is shown red
