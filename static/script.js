@@ -17,11 +17,13 @@ function fetchResponse(data, sort_method) {
     },
     body: JSON.stringify({ data, sort_method }),
   })
-  .then(response => {
+  .then(async response => {
+    const payload = await response.json().catch(() => ({ message: 'Unexpected response' }));
     if (!response.ok) {
-      throw new Error('Request failed');
+      const message = payload?.message || 'Request failed';
+      throw new Error(message);
     }
-    return response.json();
+    return payload;
   })
   .then(data => {
         console.log(data);
@@ -29,28 +31,28 @@ function fetchResponse(data, sort_method) {
   })
   .catch(error => {
     console.error('Error:', error);
-    throw error;
+    handleError(error?.message || 'Something went wrong. Please try again.');
   });
 }
 
 // Performs fetch on submit if the link is valid, else the user is shown red
 document.querySelector("form#playlist-form").addEventListener("submit", (e) => {
 	e.preventDefault();
-	var link = input_field.value;
-	if (linkChecker(link)) {
-		document.body.setAttribute("data-appstate", "1");
-		fetchResponse(link, sort_field.value);
-	} else {
+        var link = input_field.value;
+        if (linkChecker(link)) {
+                document.body.setAttribute("data-appstate", "1");
+                fetchResponse(link, sort_field.value);
+        } else {
 		input_field.classList.add("input-error");
 	}
 });
 
 // Sets the relevant html to show data retrieved from recommendation system
 function showResults (data) {
-	reccs = data
-	reccEls = document.querySelectorAll("#recommendations-container li")
-	hasReccs = false
-	reccs.forEach((recc, i) => {
+        reccs = data
+        reccEls = document.querySelectorAll("#recommendations-container li")
+        hasReccs = false
+        reccs.forEach((recc, i) => {
 		hasReccs = true
 		reccEls[i].querySelector("h3").textContent = recc.name
 		reccEls[i].querySelector("h4").textContent = recc.artist
@@ -59,9 +61,15 @@ function showResults (data) {
 	});
 	if (hasReccs){
 		document.body.setAttribute("data-appstate", "2");
-	}
-	else{
-		document.body.setAttribute("data-appstate", "0")
-		alert("Error occured while reading given playlist. Please try another.")
-	}
+        }
+        else{
+                document.body.setAttribute("data-appstate", "0")
+                alert("Error occured while reading given playlist. Please try another.")
+        }
+}
+
+// Handles API errors by resetting the UI and notifying the user
+function handleError(message) {
+        document.body.setAttribute("data-appstate", "0");
+        alert(message);
 }
