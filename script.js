@@ -8,9 +8,9 @@ function linkChecker(string) {
   return regex.test(string);
 };
 
-// Fetches data from python server
+// Fetches data from Netlify Function
 function fetchResponse(data, sort_method) {
-  return fetch('/server', {
+  return fetch('/.netlify/functions/recommend', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
@@ -19,8 +19,8 @@ function fetchResponse(data, sort_method) {
   })
   .then(response => response.json())
   .then(data => {
-	console.log(data);
-	showResults(data.recommendations);
+        console.log(data);
+        showResults(data.recommendations);
   })
   .catch(error => {
     console.error('Error:', error);
