@@ -24,8 +24,14 @@ let cachedDataset;
 
 const playlistRegex = /^https:\/\/open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)(?:\?.*)?$/;
 
+function asGenreArray(value) {
+  if (Array.isArray(value)) return value.length ? value : ['unknown'];
+  if (typeof value === 'string' && value.trim()) return [normalizeGenreLabel(value)];
+  return ['unknown'];
+}
+
 function normalizeGenreLabel(label = '') {
-  const genre = label.toLowerCase();
+  const genre = Array.isArray(label) ? label.join(' ').toLowerCase() : label.toLowerCase();
   const mapping = [
     { targets: ['country'], value: 'country' },
     { targets: ['hip hop', 'hip-hop', 'rap', 'trap'], value: 'hip-hop' },
@@ -193,8 +199,16 @@ async function fetchPlaylistTracks(playlistId, token) {
 
   const artistGenres = new Map();
   artists.artists.forEach((artist) => {
-    const coarse = normalizeGenreLabel(artist.genres?.[0] || 'unknown');
-    artistGenres.set(artist.id, coarse);
+    const coarseSet = new Set();
+    (artist.genres || []).forEach((g) => {
+      const coarse = normalizeGenreLabel(g);
+      if (coarse !== 'unknown') coarseSet.add(coarse);
+    });
+    if (!coarseSet.size) {
+      const fallback = normalizeGenreLabel(artist.genres?.[0] || 'unknown');
+      if (fallback) coarseSet.add(fallback);
+    }
+    artistGenres.set(artist.id, Array.from(coarseSet));
   });
 
   const featureLookup = new Map();
@@ -207,11 +221,12 @@ async function fetchPlaylistTracks(playlistId, token) {
       const track = item.track;
       const features = featureLookup.get(track.id);
       if (!features) return null;
+      const artistCoarseGenres = artistGenres.get(track.artists?.[0]?.id) || ['unknown'];
       return {
         track_id: track.id,
         track_name: track.name,
         popularity: track.popularity,
-        genre: artistGenres.get(track.artists?.[0]?.id) || 'unknown',
+        genre: artistCoarseGenres,
         danceability: features.danceability,
         energy: features.energy,
         loudness: features.loudness,
@@ -364,7 +379,7 @@ exports.handler = async (event) => {
         track_id: item.track_id,
         track_name: item.track_name,
         popularity: Number(item.popularity) || 0,
-        genre: normalizeGenreLabel(item.genre),
+        genre: asGenreArray(item.genre),
         danceability: Number(item.danceability),
         energy: Number(item.energy),
         loudness: Number(item.loudness),
@@ -392,17 +407,36 @@ exports.handler = async (event) => {
       playlistTracks.length;
 
     const genreCounts = playlistTracks.reduce((acc, track) => {
-      const genre = normalizeGenreLabel(track.genre || 'unknown');
-      acc.set(genre, (acc.get(genre) || 0) + 1);
+      const genres = asGenreArray(track.genre).map((g) => normalizeGenreLabel(g));
+      const weight = 1 / Math.max(genres.length, 1);
+      genres.forEach((genre) => {
+        acc.set(genre, (acc.get(genre) || 0) + weight);
+      });
       return acc;
     }, new Map());
 
-    const totalTracks = playlistTracks.length || 1;
+    let totalTracks = playlistTracks.length || 1;
+    if (!genreCounts.size) {
+      // Infer likely playlist genres by comparing the playlist mean to the dataset
+      const inferred = dataset.normalized
+        .map((item) => ({
+          item,
+          sim: cosineSimilarity(item.featureVector, playlistMean)
+        }))
+        .sort((a, b) => b.sim - a.sim)
+        .slice(0, 40);
+      inferred.forEach(({ item }) => {
+        const coarse = normalizeGenreLabel(item.coarseGenre || item.genre);
+        genreCounts.set(coarse, (genreCounts.get(coarse) || 0) + 1);
+      });
+      totalTracks = inferred.length || totalTracks;
+    }
+
     const preferredGenres = Array.from(genreCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([genre, count]) => ({ genre, weight: count / totalTracks }));
 
-    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.2 || idx === 0);
+    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.18 || idx === 0);
 
     const primaryGenreSet = new Set(primaryGenres.map((g) => g.genre));
 
@@ -412,7 +446,7 @@ exports.handler = async (event) => {
       return primaryGenreSet.has(itemGenre);
     });
 
-    const candidates = strictGenreMatches.length >= 10 ? strictGenreMatches : dataset.normalized;
+    const candidates = strictGenreMatches.length >= 12 ? strictGenreMatches : dataset.normalized;
 
     const rand = createSeededRandom(playlistId);
 
@@ -431,8 +465,8 @@ exports.handler = async (event) => {
 
         const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
         const genreWeight = primaryGenres.find((g) => g.genre === itemGenre)?.weight || 0;
-        const genreMatchBoost = 1 + Math.min(genreWeight * 0.6, 0.35);
-        const genrePenalty = primaryGenreSet.size && !primaryGenreSet.has(itemGenre) ? 0.45 : 1;
+        const genreMatchBoost = 1 + Math.min(genreWeight * 0.8, 0.45);
+        const genrePenalty = primaryGenreSet.size && !primaryGenreSet.has(itemGenre) ? 0.18 : 1;
 
         const popDelta = Math.min(
           Math.abs((item.popularity || 0) - avgPopularity) / 100,
@@ -444,10 +478,10 @@ exports.handler = async (event) => {
           ? 0.9
           : 1;
 
-        const jitter = rand() * 0.02;
+        const jitter = rand() * 0.01;
 
         const blended =
-          (featureScore * 0.82 + meanSim * 0.08 + popWeight * 0.08 + jitter) *
+          (featureScore * 0.84 + meanSim * 0.06 + popWeight * 0.08 + jitter) *
             genrePenalty +
           genreMatchBoost * 0.02;
         const adjustedSimilarity = Math.min(Math.max(blended * artistPenalty, 0), 1);
@@ -471,15 +505,15 @@ exports.handler = async (event) => {
     const finalScores = pool.map((item) => item.finalScore);
     const minScore = Math.min(...finalScores);
     const maxScore = Math.max(...finalScores);
-    const scoreRange = Math.max(0.12, maxScore - minScore || 0);
+    const scoreRange = Math.max(0.08, maxScore - minScore || 0);
 
     pool.forEach((candidate, index) => {
       if (reranked.length >= 5) return;
       const normalizedScore = (candidate.finalScore - minScore) / scoreRange;
       const rankComponent = 1 - index / pool.length;
       const baseSignal = Math.max(candidate.maxSim, candidate.meanSim, candidate.featureScore);
-      const blendedSignal = 0.55 * baseSignal + 0.25 * normalizedScore + 0.2 * rankComponent;
-      const displaySimilarity = 0.8 + Math.min(Math.max(blendedSignal, 0), 1) * 0.2;
+      const blendedSignal = 0.45 * baseSignal + 0.35 * normalizedScore + 0.2 * rankComponent;
+      const displaySimilarity = 0.6 + Math.min(Math.max(blendedSignal, 0), 1) * 0.39;
       candidate.displaySimilarity = Math.min(Math.max(displaySimilarity, 0), 1);
       reranked.push(candidate);
       const artistKey = (candidate.artist_name || '').toLowerCase();
