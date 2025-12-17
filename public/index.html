@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/style.css">
+  <title>Recommendify</title>
+</head>
+<body data-appstate="0">
+  <form id="playlist-form">
+    <input type="text"  class="input-space" name="playlist-url" placeholder = 'https://open.spotify.com/playlist/...' autofocus id="playlist-url">
+          <div id="formstuff">
+                  <h3>Sort Method:</h3>
+                  <select name="" id="sort-method">
+                          <option value="heap">Heap</option>
+                          <option value="merge">Merge</option>
+		  </select>
+		  <button type="submit">GO!</button>
+	  </div>
+                <div id="instructions">
+                          <h2>Instructions:</h2>
+                          <p>Paste a full Spotify playlist URL (from the browser address bar), pick a sorting algorithm, and submit. Results stream back from the Netlify Function.</p>
+                </div>
+  </form>
+  <div id="spinner-container">
+    <div id="spinner"></div>
+  </div>
+<div id="recommendations-container">
+  <h1>Recommendations:</h1>
+  <ul id="recommendations-list"></ul>
+</div>
+  <script src="/static/script.js"></script>
+</body>
+</html>

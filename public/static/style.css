@@ -1,0 +1,242 @@
+html {
+  --bg: #2a2730;
+  --sec: #746d8a;
+
+  --border-width: 1px;
+
+  --default-textcolor: #d9d7e0;
+  --default-font: 18px ui-monospace, monospace;
+  --default-border: var(--border-width) solid var(--sec);
+
+  --theme: #15a44c;
+  --theme-sec: #86efad;
+  --theme-border: var(--border-width) solid var(--theme-sec);
+
+  background-color: var(--bg);
+  width: 100%;
+  height: 100%;
+
+  font: var(--default-font);
+  overflow: hidden;
+}
+
+h2, p {
+	color: var(--default-textcolor);
+}
+div#instructions {
+	margin-top: 32px;
+	padding: 0 16px;
+	border: var(--default-border);
+	border-radius: 8px;
+}
+
+@keyframes appear {
+  0% {
+	transform: translate(-50%, -50%) scale(3);
+	opacity: 0;
+  }
+  100% {
+	transform: translate(-50%, -50%);
+	opacity: 1;
+  }
+}
+@keyframes disappear {
+  from {
+	transform: translate(-50%, -50%);
+	opacity: 1;
+  } to {
+	transform: translate(-50%, -50%) scale(.3);
+	opacity: 0;
+  }
+}
+
+body:not([data-appstate="0"]) #playlist-form {
+  animation: disappear .3s ease-in both;
+}
+form#playlist-form {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px;
+  border-radius: 24px;
+  max-width: 500px;
+  width: 90%;
+}
+
+form#playlist-form input {
+  background-color: transparent;
+	display: block;
+	width: 100%;
+	padding: 8px;
+	margin-bottom: 12px;
+  border: var(--default-border);
+  outline: none;
+  color: var(--default-textcolor);
+  font: var(--default-font);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+form#playlist-form input.input-error {
+	border-color: #ee4556;
+	background-color: #7e1e28;
+}
+form#playlist-form > div#formstuff {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+form#playlist-form > div > h3 {
+	color: var(--default-textcolor);
+	margin: 0;
+	padding-left: 2px;
+	font-size:18px;
+}
+form#playlist-form > div > select {
+	flex-grow: 1;
+	margin-left: 12px;
+	  background-color: var(--bg);
+	  border: var(--default-border);
+	  font: var(--default-font);
+	  color: var(--default-textcolor);
+	  padding: 8px;
+	  border-radius: 8px;
+}
+form#playlist-form  button {
+  margin-left: 12px;
+  background-color: var(--theme);
+  border: var(--theme-border);
+  font: var(--default-font);
+  color: var(--default-textcolor);
+  padding: 8px;
+  border-radius: 8px;
+}
+
+[data-show="false"] {
+  display: none;
+}
+
+/* PHASE II */
+body[data-appstate="1"] div#spinner-container {
+  display: block;
+  animation: appear .7s .3s cubic-bezier(0.19, 1, 0.22, 1) both;
+}
+body[data-appstate="2"] div#spinner-container {
+  display: block;
+  animation: disappear .3s ease-in both;
+}
+div#spinner-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+}
+div#spinner {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border: 16px solid transparent;
+  border-top-color: var(--theme);
+  border-radius: 50%;
+  animation: spin 2s linear infinite both;
+  box-sizing: border-box;
+  z-index: 0;
+}
+div#spinner::before {
+  content: "";
+  position: absolute;
+  top: -16px;
+  left: -16px;
+  width: 100%;
+  height: 100%;
+  border: 16px solid transparent;
+  border-radius: 50%;
+  border-top-color: var(--theme-sec);
+  animation: spin 8s linear infinite both;
+  z-index: 1;
+}
+@keyframes spin {
+  from {
+	transform: rotate(0);
+  } to {
+	transform: rotate(360deg);
+  }
+}
+
+/* PHASE III */
+
+body:not([data-appstate="2"]) #recommendations-container {
+  display: none;
+}
+div#recommendations-container h1 {
+  font-size: 32px;
+}
+div#recommendations-container {
+  position: relative;
+  display: sticky;
+
+  border: var(--default-border);
+  padding: 0 12px;
+  border-radius: 12px;
+  color: var(--default-textcolor);
+
+  width: 90%;
+  max-width: 500px;
+  margin: 128px auto;
+  animation: scrollin .7s .3s cubic-bezier(0.19, 1, 0.22, 1) both;
+}
+@keyframes scrollin {
+  from{
+	transform: translateY(100%);
+	opacity: 0;
+  } to {
+	transform: none;
+	opacity: 1;
+  }
+}
+ul#recommendations-list {
+	margin: 0;
+	padding: 0;
+	list-style-type: none;
+}
+ul#recommendations-list li.recommendation {
+	display: flex;
+	align-items: center;
+	padding: 12px 0;
+}
+ul#recommendations-list li.recommendation:not(:last-child) {
+	border-bottom: var(--default-border);
+}
+ul#recommendations-list li.recommendation img.recommendation-album {
+	width: 3em;
+	height: 3em;
+}
+ul#recommendations-list li.recommendation div.recommendation-text {
+	flex-grow: 1;
+	margin: 0 8px;
+}
+div.recommendation-text h3 {
+	margin: 0;
+	margin-bottom: 4px;
+}
+div.recommendation-text h4 {
+	margin: 0;
+}
+div.sim-score {
+	position: relative;
+	width: 3em;
+	height: 3em;
+	background-color: transparent;
+}
+div.sim-score > svg {
+	width: 100%;
+	height: 100%;
+	transform: rotate(-90deg);
+}
+svg > circle {
+	--l: .8em;
+	r: var(--l);
+	stroke-dasharray: calc(calc(6.28318530718 * var(--similarity)) * var(--l)) 10em;
+	stroke-linecap: round;
+}
