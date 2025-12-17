@@ -7,74 +7,86 @@
   <title>Recommendify</title>
 </head>
 <body data-appstate="0">
-  <main class="page">
-    <header class="page__header">
-      <div class="logo">Recommendify</div>
-      <div class="hero">
-        <div>
-          <p class="pill">Spotify smart picks</p>
-          <h1>Drop a playlist link. Get fresh tracks.</h1>
-          <p class="subtitle">We read the vibe of your playlist and surface songs that actually fit. No clutter, just recommendations you can send straight to your queue.</p>
-          <ul class="benefits">
-            <li>Understands your top genres and energy</li>
-            <li>Filters out songs you already added</li>
-            <li>Shows similarity at a glance</li>
-          </ul>
-        </div>
-        <div class="glass card">
-          <h2 class="card__title">Start with your playlist</h2>
-          <form id="playlist-form">
-            <label for="playlist-url" class="label">Playlist URL</label>
-            <input
-              type="text"
-              class="input-space"
-              name="playlist-url"
-              id="playlist-url"
-              placeholder="https://open.spotify.com/playlist/..."
-              autofocus
-            >
-
-            <div class="form-row">
-              <label for="sort-method" class="label">Sort method</label>
-              <div class="form-row__controls">
-                <select id="sort-method" aria-label="Sort method">
-                  <option value="heap">Heap</option>
-                  <option value="merge">Merge</option>
-                </select>
-                <button type="submit">Get picks</button>
-              </div>
-            </div>
-
-            <div id="instructions" class="note">
-              <h3>How to grab the link</h3>
-              <p>Open Spotify in your browser, click a playlist, and copy the URL from the address bar. Paste it here, choose your sorting flavor, and hit Get picks.</p>
-            </div>
-
-            <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
-          </form>
-        </div>
-      </div>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Recommendify</div>
+      <p class="topbar__hint">Playlist-aware picks for Spotify</p>
     </header>
+
+    <section class="hero">
+      <div class="hero__copy">
+        <p class="pill">Smart, playlist-native recs</p>
+        <h1>Make your playlists smarter in seconds.</h1>
+        <p class="lede">Drop any Spotify playlist link and we’ll fetch tracks that match its energy, genre mix, and popularity. See why each song fits before you hit play.</p>
+        <ul class="highlights">
+          <li><span class="dot"></span>Understands your real playlist vibe</li>
+          <li><span class="dot"></span>Skips songs you already saved</li>
+          <li><span class="dot"></span>Shows similarity as a quick badge</li>
+        </ul>
+      </div>
+
+      <div class="panel card">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Start here</p>
+            <h2>Paste a playlist link</h2>
+          </div>
+          <div class="chip">No login needed</div>
+        </div>
+
+        <form id="playlist-form" class="form">
+          <label for="playlist-url" class="label">Playlist URL</label>
+          <input
+            type="text"
+            class="input-space"
+            name="playlist-url"
+            id="playlist-url"
+            placeholder="https://open.spotify.com/playlist/..."
+            autofocus
+          >
+
+          <div class="form-row">
+            <label for="sort-method" class="label">Sort method</label>
+            <div class="form-row__controls">
+              <select id="sort-method" aria-label="Sort method">
+                <option value="heap">Heap</option>
+                <option value="merge">Merge</option>
+              </select>
+              <button type="submit">Get picks</button>
+            </div>
+          </div>
+
+          <div class="helper">
+            <p class="helper__title">Need the link?</p>
+            <p>Open Spotify in your browser, click a playlist, and copy the URL from the address bar. Paste it above and pick a sort.</p>
+          </div>
+
+          <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
 
     <div id="spinner-container" aria-live="polite">
       <div id="spinner" role="status" aria-label="Loading"></div>
     </div>
 
-    <section id="recommendations-container" class="card" aria-live="polite">
+    <section id="recommendations-container" class="results card" aria-live="polite">
       <header class="section-header">
         <div>
           <p class="eyebrow">Recommendations</p>
-          <h1>Top matches from your playlist</h1>
+          <h1>Tracks tailored to your playlist</h1>
+          <p class="section-subtitle">We analyze your playlist tracks, match them against our dataset, and add a touch of variety so every run feels fresh.</p>
         </div>
         <p class="badge" id="sort-label"></p>
       </header>
 
-      <ul id="recommendations-list"></ul>
+      <ul id="recommendations-list" class="recommendations"></ul>
 
       <template id="recommendation-template">
         <li class="recommendation">
           <img src="" alt="Album cover" class="recommendation-album">
           <div class="recommendation-text">
+            <p class="recommendation-genre"></p>
             <h3 class="recommendation-title"></h3>
             <h4 class="recommendation-artist"></h4>
           </div>

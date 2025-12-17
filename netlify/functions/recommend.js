@@ -189,7 +189,7 @@ function normalizeValue(value, min, max) {
   return (value - min) / (max - min);
 }
 
-function buildPlaylistVector(tracks, minMax) {
+function buildPlaylistVectors(tracks, minMax) {
   const normalizedTracks = tracks.map((track) => {
     const vector = FEATURES.map((key) => {
       const val = Number(track[key]);
@@ -206,9 +206,11 @@ function buildPlaylistVector(tracks, minMax) {
     });
   });
 
-  return normalizedTracks.length
+  const meanVector = normalizedTracks.length
     ? aggregated.map((val) => val / normalizedTracks.length)
     : aggregated;
+
+  return { meanVector, normalizedTracks };
 }
 
 function cosineSimilarity(a, b) {
@@ -236,6 +238,20 @@ async function getTrackMetadata(trackIds, token) {
     cover: track.album?.images?.[0]?.url || '',
     track_id: track.id
   }));
+}
+
+function createSeededRandom(seed) {
+  let x = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    x = (x + seed.charCodeAt(i) * 2654435761) >>> 0;
+  }
+
+  return () => {
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    return (x >>> 0) / 0xffffffff;
+  };
 }
 
 exports.handler = async (event) => {
@@ -268,8 +284,14 @@ exports.handler = async (event) => {
       };
     }
 
-    const playlistVector = buildPlaylistVector(playlistTracks, dataset.minMax);
+    const { normalizedTracks: playlistVectors } = buildPlaylistVectors(
+      playlistTracks,
+      dataset.minMax
+    );
     const playlistIds = new Set(playlistTracks.map((track) => track.track_id));
+    const playlistArtists = new Set(
+      playlistTracks.map((track) => (track.artist_name || '').toLowerCase())
+    );
     const avgPopularity =
       playlistTracks.reduce((sum, track) => sum + (Number(track.popularity) || 0), 0) /
       playlistTracks.length;
@@ -291,22 +313,60 @@ exports.handler = async (event) => {
     });
     const candidates = genreFiltered.length ? genreFiltered : dataset.normalized;
 
+    const rand = createSeededRandom(playlistId);
+
     const scored = candidates
       .filter((item) => !playlistIds.has(item.track_id))
       .map((item) => {
-        const similarity = cosineSimilarity(item.featureVector, playlistVector);
+        const similarities = playlistVectors.map((track) =>
+          cosineSimilarity(item.featureVector, track.featureVector)
+        );
+        const maxSim = similarities.length ? Math.max(...similarities) : 0;
+        const avgSim = similarities.length
+          ? similarities.reduce((sum, val) => sum + val, 0) / similarities.length
+          : 0;
+        const baseBlend = maxSim * 0.7 + avgSim * 0.3;
 
-        const genreBoost = preferredGenres.includes(item.genre) ? 1.1 : 0.9;
-        const popDelta = Math.min(Math.abs((item.popularity || 0) - avgPopularity) / 100, 0.5);
+        const genreBoost = preferredGenres.includes(item.genre) ? 1.08 : 0.92;
+        const popDelta = Math.min(
+          Math.abs((item.popularity || 0) - avgPopularity) / 100,
+          0.5
+        );
         const popWeight = 1 - popDelta; // closeness to playlist popularity
 
-        const blended = similarity * 0.8 + popWeight * 0.2;
-        const adjustedSimilarity = Math.min(Math.max(blended * genreBoost, 0), 1);
+        const artistPenalty = playlistArtists.has((item.artist_name || '').toLowerCase())
+          ? 0.9
+          : 1;
+
+        const jitter = rand() * 0.05;
+
+        const blended = baseBlend * 0.75 + popWeight * 0.15 + jitter;
+        const adjustedSimilarity = Math.min(Math.max(blended * genreBoost * artistPenalty, 0), 1);
         return { ...item, similarity: adjustedSimilarity };
       })
       .sort((a, b) => b.similarity - a.similarity);
 
-    const top = scored.slice(0, 5);
+    const reranked = [];
+    const usedArtists = new Set();
+    const pool = scored.slice(0, 25);
+
+    for (const candidate of pool) {
+      const artistKey = (candidate.artist_name || '').toLowerCase();
+      const diversityPenalty = usedArtists.has(artistKey) ? 0.8 : 1;
+      const finalScore = candidate.similarity * diversityPenalty;
+      candidate.finalScore = finalScore;
+    }
+
+    pool.sort((a, b) => b.finalScore - a.finalScore);
+
+    for (const candidate of pool) {
+      if (reranked.length >= 5) break;
+      reranked.push(candidate);
+      const artistKey = (candidate.artist_name || '').toLowerCase();
+      usedArtists.add(artistKey);
+    }
+
+    const top = reranked;
     const metadata = await getTrackMetadata(top.map((t) => t.track_id), token);
     const metadataMap = new Map(metadata.map((item) => [item.track_id, item]));
 
@@ -316,6 +376,7 @@ exports.handler = async (event) => {
         name: details.name || item.track_name,
         artist: details.artist || item.artist_name,
         cover: details.cover || '',
+        genre: item.genre,
         similarity: Number(item.similarity.toFixed(3))
       };
     });

@@ -58,6 +58,11 @@ function renderRecommendations(items, sortMethod) {
 
     clone.querySelector('.recommendation-title').textContent = item.name;
     clone.querySelector('.recommendation-artist').textContent = item.artist;
+    const genreEl = clone.querySelector('.recommendation-genre');
+    if (genreEl) {
+      genreEl.textContent = item.genre ? item.genre.toUpperCase() : '';
+      genreEl.hidden = !item.genre;
+    }
     clone.querySelector('.recommendation-album').src = item.cover || placeholder;
     clone.querySelector('.recommendation-album').alt = `${item.name} album cover`;
 
