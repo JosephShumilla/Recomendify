@@ -274,7 +274,8 @@ exports.handler = async (event) => {
         const genreBonus = playlistTracks.some((track) => track.genre === item.genre)
           ? 0.05
           : 0;
-        return { ...item, similarity: similarity + genreBonus };
+        const adjustedSimilarity = Math.min(similarity + genreBonus, 1);
+        return { ...item, similarity: adjustedSimilarity };
       })
       .sort((a, b) => b.similarity - a.similarity);
 
