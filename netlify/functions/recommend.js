@@ -379,10 +379,10 @@ exports.handler = async (event) => {
       }));
     }
 
-    const { normalizedTracks: playlistVectors } = buildPlaylistVectors(
-      playlistTracks,
-      dataset.minMax
-    );
+    const {
+      normalizedTracks: playlistVectors,
+      meanVector: playlistMean
+    } = buildPlaylistVectors(playlistTracks, dataset.minMax);
     const playlistIds = new Set(playlistTracks.map((track) => track.track_id));
     const playlistArtists = new Set(
       playlistTracks.map((track) => (track.artist_name || '').toLowerCase())
@@ -397,20 +397,20 @@ exports.handler = async (event) => {
       return acc;
     }, new Map());
 
+    const totalTracks = playlistTracks.length || 1;
     const preferredGenres = Array.from(genreCounts.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([genre]) => genre);
+      .map(([genre, count]) => ({ genre, weight: count / totalTracks }));
 
-    const genreFiltered = dataset.normalized.filter((item) => {
-      if (!preferredGenres.length) return true;
-      return (
-        preferredGenres.includes(normalizeGenreLabel(item.genre)) ||
-        preferredGenres.includes(item.coarseGenre) ||
-        preferredGenres.includes('unknown')
-      );
+    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.2 || idx === 0);
+
+    const strictGenreMatches = dataset.normalized.filter((item) => {
+      if (!primaryGenres.length) return true;
+      const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
+      return primaryGenres.some((g) => g.genre === itemGenre);
     });
-    const candidates = genreFiltered.length ? genreFiltered : dataset.normalized;
+
+    const candidates = strictGenreMatches.length >= 10 ? strictGenreMatches : dataset.normalized;
 
     const rand = createSeededRandom(playlistId);
 
@@ -424,9 +424,13 @@ exports.handler = async (event) => {
         const avgSim = similarities.length
           ? similarities.reduce((sum, val) => sum + val, 0) / similarities.length
           : 0;
-        const baseBlend = maxSim * 0.6 + avgSim * 0.4;
+        const meanSim = cosineSimilarity(item.featureVector, playlistMean);
+        const featureScore = maxSim * 0.5 + avgSim * 0.25 + meanSim * 0.25;
 
-        const genreBoost = preferredGenres.includes(item.genre) ? 1.08 : 0.92;
+        const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
+        const genreWeight = primaryGenres.find((g) => g.genre === itemGenre)?.weight || 0;
+        const genreBoost = 0.85 + Math.min(genreWeight * 1.2, 0.7);
+
         const popDelta = Math.min(
           Math.abs((item.popularity || 0) - avgPopularity) / 100,
           0.5
@@ -437,14 +441,14 @@ exports.handler = async (event) => {
           ? 0.9
           : 1;
 
-        const jitter = rand() * 0.05;
+        const jitter = rand() * 0.03;
 
-        const blended = baseBlend * 0.7 + popWeight * 0.2 + jitter;
+        const blended = featureScore * 0.75 + popWeight * 0.15 + genreBoost * 0.08 + jitter;
         const adjustedSimilarity = Math.min(
-          Math.max(blended * genreBoost * artistPenalty, 0),
+          Math.max(blended * artistPenalty, 0),
           1
         );
-        return { ...item, similarity: adjustedSimilarity, baseBlend, maxSim, avgSim };
+        return { ...item, similarity: adjustedSimilarity, featureScore, maxSim, avgSim, meanSim };
       })
       .sort((a, b) => b.similarity - a.similarity);
 
@@ -494,7 +498,9 @@ exports.handler = async (event) => {
           artist: details.artist || item.artist_name,
           cover,
           genre: item.genre,
-          similarity: Number(item.displaySimilarity?.toFixed(3) || item.similarity.toFixed(3))
+          similarity: Number(item.displaySimilarity?.toFixed(3) || item.similarity.toFixed(3)),
+          track_id: item.track_id,
+          url: `https://open.spotify.com/track/${item.track_id}`
         };
       })
     );

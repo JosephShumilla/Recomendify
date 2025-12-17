@@ -53,6 +53,11 @@ function renderRecommendations(items, sortMethod) {
     const clone = template.content.firstElementChild.cloneNode(true);
     const similarity = Math.min(Math.max(item.similarity ?? 0, 0), 1);
     const percent = Math.round(similarity * 100);
+    const link = clone.querySelector('.recommendation-link');
+    if (link) {
+      link.href = item.url || (item.track_id ? `https://open.spotify.com/track/${item.track_id}` : '#');
+      link.title = `Open ${item.name} on Spotify`;
+    }
     const placeholder =
       'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><defs><linearGradient id="g" x1="0%" x2="100%" y1="0%" y2="100%"><stop stop-color="%231db954" offset="0%"/><stop stop-color="%230b1022" offset="100%"/></linearGradient></defs><rect width="200" height="200" fill="url(%23g)"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, Arial" font-size="22" fill="white">Track</text></svg>';
 
