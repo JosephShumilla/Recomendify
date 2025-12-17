@@ -436,22 +436,35 @@ exports.handler = async (event) => {
       .sort((a, b) => b[1] - a[1])
       .map(([genre, count]) => ({ genre, weight: count / totalTracks }));
 
-    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.14 || idx < 2);
+    // Build a small, dominant genre set (1-3 genres) so off-genre tracks are excluded
+    const dominantGenres = [];
+    let cumulative = 0;
+    for (const g of preferredGenres) {
+      if (dominantGenres.length >= 3) break;
+      dominantGenres.push(g);
+      cumulative += g.weight;
+      if (cumulative >= 0.82) break;
+    }
+    if (!dominantGenres.length && preferredGenres.length) {
+      dominantGenres.push(preferredGenres[0]);
+    }
 
-    const primaryGenreSet = new Set(primaryGenres.map((g) => g.genre));
+    const primaryGenreSet = new Set(dominantGenres.map((g) => g.genre));
 
     const strictGenreMatches = dataset.normalized.filter((item) => {
-      if (!primaryGenres.length) return true;
+      if (!primaryGenreSet.size) return true;
       const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
       return primaryGenreSet.has(itemGenre);
     });
 
-    // Keep a very small escape hatch for playlists with sparse genres while favoring strict matches
-    const candidates = strictGenreMatches.length >= 5
+    // Keep a tiny escape hatch if the strict set is too small, but heavily prefer primary genres
+    const candidates = strictGenreMatches.length >= 6
       ? strictGenreMatches
       : dataset.normalized.filter((item) => {
           const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
-          return primaryGenreSet.has(itemGenre) || preferredGenres.slice(0, 3).some((g) => g.genre === itemGenre);
+          const isPrimary = primaryGenreSet.has(itemGenre);
+          const isSecondary = preferredGenres.slice(0, 2).some((g) => g.genre === itemGenre);
+          return isPrimary || isSecondary;
         });
 
     const rand = createSeededRandom(playlistId);
@@ -468,16 +481,16 @@ exports.handler = async (event) => {
           : 0;
         const meanSim = cosineSimilarity(item.featureVector, playlistMean);
 
-        // Prioritize genre alignment heavily, with a tighter clamp against off-genre tracks
+        // Prioritize genre alignment heavily, with a hard clamp against off-genre tracks
         const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
-        const genreWeight = primaryGenres.find((g) => g.genre === itemGenre)?.weight || 0;
+        const genreWeight = dominantGenres.find((g) => g.genre === itemGenre)?.weight || 0;
         const genreAlignment = primaryGenreSet.has(itemGenre)
-          ? 0.82 + genreWeight * 0.18
-          : primaryGenres.length
-          ? 0.05
-          : 0.4;
+          ? 0.88 + genreWeight * 0.12
+          : dominantGenres.length
+          ? 0.01
+          : 0.35;
 
-        const featureScore = maxSim * 0.5 + avgSim * 0.2 + meanSim * 0.3;
+        const featureScore = maxSim * 0.46 + avgSim * 0.2 + meanSim * 0.34;
 
         const popDelta = Math.min(
           Math.abs((item.popularity || 0) - avgPopularity) / 100,
@@ -492,10 +505,10 @@ exports.handler = async (event) => {
         const jitter = rand() * 0.01;
 
         const blended =
-          featureScore * 0.42 +
-          genreAlignment * 0.45 +
-          popWeight * 0.08 +
-          meanSim * 0.05 +
+          featureScore * 0.38 +
+          genreAlignment * 0.52 +
+          popWeight * 0.06 +
+          meanSim * 0.04 +
           jitter;
 
         const adjustedSimilarity = Math.min(
@@ -534,9 +547,9 @@ exports.handler = async (event) => {
         candidate.featureScore,
         candidate.genreAlignment || 0
       );
-      const blendedSignal = 0.48 * baseSignal + 0.37 * normalizedScore + 0.15 * rankComponent;
-      const displaySimilarity = 0.82 + Math.min(Math.max(blendedSignal, 0), 1) * 0.17;
-      candidate.displaySimilarity = Math.min(Math.max(displaySimilarity, 0), 1);
+      const blendedSignal = 0.52 * baseSignal + 0.35 * normalizedScore + 0.13 * rankComponent;
+      const displaySimilarity = 0.8 + Math.min(Math.max(blendedSignal, 0), 1) * 0.19;
+      candidate.displaySimilarity = Math.min(Math.max(displaySimilarity, 0), 0.995);
       reranked.push(candidate);
       const artistKey = (candidate.artist_name || '').toLowerCase();
       usedArtists.add(artistKey);
