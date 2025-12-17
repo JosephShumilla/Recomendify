@@ -8,12 +8,20 @@ CORS(app)  # Enable CORS for all routes
 
 @app.route('/server', methods=['POST'])
 def process_data():
-    link = request.json.get('data')
-    sort = request.json.get('sort_method')
-    recommendation = recommender(link, sort)
-    result = recommendation.get_recommendations()
+    try:
+        payload = request.get_json(silent=True) or {}
+        link = payload.get('data')
+        sort = payload.get('sort_method')
 
-    return jsonify({'recommendations': result})
+        if not link:
+            return jsonify({'error': 'Missing playlist URL.'}), 400
+
+        recommendation = recommender(link, sort)
+        result = recommendation.get_recommendations()
+
+        return jsonify({'recommendations': result})
+    except Exception as exc:  # noqa: BLE001 - surface error details to the client
+        return jsonify({'error': str(exc)}), 400
 
 
 @app.route('/', methods=["GET"])
