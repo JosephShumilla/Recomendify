@@ -24,6 +24,30 @@ let cachedDataset;
 
 const playlistRegex = /^https:\/\/open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)(?:\?.*)?$/;
 
+function normalizeGenreLabel(label = '') {
+  const genre = label.toLowerCase();
+  const mapping = [
+    { targets: ['country'], value: 'country' },
+    { targets: ['hip hop', 'hip-hop', 'rap', 'trap'], value: 'hip-hop' },
+    { targets: ['r&b', 'soul'], value: 'soul' },
+    { targets: ['k-pop', 'kpop'], value: 'k-pop' },
+    { targets: ['latin', 'reggaeton', 'salsa', 'bachata', 'sertanejo'], value: 'latin' },
+    { targets: ['edm', 'dance', 'electronic', 'house', 'club'], value: 'dance' },
+    { targets: ['rock', 'metal', 'punk', 'emo', 'alt-rock', 'alternative'], value: 'rock' },
+    { targets: ['folk', 'acoustic', 'singer-songwriter'], value: 'folk' },
+    { targets: ['jazz'], value: 'jazz' },
+    { targets: ['classical'], value: 'classical' }
+  ];
+
+  for (const { targets, value } of mapping) {
+    if (targets.some((target) => genre.includes(target))) {
+      return value;
+    }
+  }
+
+  return genre || 'unknown';
+}
+
 function parseCsvRow(row) {
   const columns = row.match(/(\"[^\"]*\"|[^,])+/g) || [];
   return columns.map((col) => col.replace(/^\"|\"$/g, ''));
@@ -70,6 +94,7 @@ function loadDataset() {
   });
 
   const normalized = entries.map((item) => {
+    const coarseGenre = normalizeGenreLabel(item.genre);
     const featureVector = FEATURES.map((key) => {
       const val = Number(item[key]);
       const { min, max } = minMax[key];
@@ -81,6 +106,7 @@ function loadDataset() {
       artist_name: item.artist_name,
       track_name: item.track_name,
       genre: item.genre,
+      coarseGenre,
       popularity: Number(item.popularity) || 0,
       year: Number(item.year) || 0,
       featureVector
@@ -167,7 +193,8 @@ async function fetchPlaylistTracks(playlistId, token) {
 
   const artistGenres = new Map();
   artists.artists.forEach((artist) => {
-    artistGenres.set(artist.id, artist.genres?.[0] || 'unknown');
+    const coarse = normalizeGenreLabel(artist.genres?.[0] || 'unknown');
+    artistGenres.set(artist.id, coarse);
   });
 
   const featureLookup = new Map();
@@ -337,7 +364,7 @@ exports.handler = async (event) => {
         track_id: item.track_id,
         track_name: item.track_name,
         popularity: Number(item.popularity) || 0,
-        genre: item.genre,
+        genre: normalizeGenreLabel(item.genre),
         danceability: Number(item.danceability),
         energy: Number(item.energy),
         loudness: Number(item.loudness),
@@ -365,7 +392,7 @@ exports.handler = async (event) => {
       playlistTracks.length;
 
     const genreCounts = playlistTracks.reduce((acc, track) => {
-      const genre = track.genre || 'unknown';
+      const genre = normalizeGenreLabel(track.genre || 'unknown');
       acc.set(genre, (acc.get(genre) || 0) + 1);
       return acc;
     }, new Map());
@@ -377,7 +404,11 @@ exports.handler = async (event) => {
 
     const genreFiltered = dataset.normalized.filter((item) => {
       if (!preferredGenres.length) return true;
-      return preferredGenres.includes(item.genre) || preferredGenres.includes('unknown');
+      return (
+        preferredGenres.includes(normalizeGenreLabel(item.genre)) ||
+        preferredGenres.includes(item.coarseGenre) ||
+        preferredGenres.includes('unknown')
+      );
     });
     const candidates = genreFiltered.length ? genreFiltered : dataset.normalized;
 
@@ -393,7 +424,7 @@ exports.handler = async (event) => {
         const avgSim = similarities.length
           ? similarities.reduce((sum, val) => sum + val, 0) / similarities.length
           : 0;
-        const baseBlend = maxSim * 0.7 + avgSim * 0.3;
+        const baseBlend = maxSim * 0.6 + avgSim * 0.4;
 
         const genreBoost = preferredGenres.includes(item.genre) ? 1.08 : 0.92;
         const popDelta = Math.min(
@@ -408,9 +439,12 @@ exports.handler = async (event) => {
 
         const jitter = rand() * 0.05;
 
-        const blended = baseBlend * 0.75 + popWeight * 0.15 + jitter;
-        const adjustedSimilarity = Math.min(Math.max(blended * genreBoost * artistPenalty, 0), 1);
-        return { ...item, similarity: adjustedSimilarity };
+        const blended = baseBlend * 0.7 + popWeight * 0.2 + jitter;
+        const adjustedSimilarity = Math.min(
+          Math.max(blended * genreBoost * artistPenalty, 0),
+          1
+        );
+        return { ...item, similarity: adjustedSimilarity, baseBlend, maxSim, avgSim };
       })
       .sort((a, b) => b.similarity - a.similarity);
 
@@ -427,12 +461,21 @@ exports.handler = async (event) => {
 
     pool.sort((a, b) => b.finalScore - a.finalScore);
 
-    for (const candidate of pool) {
-      if (reranked.length >= 5) break;
+    const finalScores = pool.map((item) => item.finalScore);
+    const minScore = Math.min(...finalScores);
+    const maxScore = Math.max(...finalScores);
+    const scoreRange = maxScore - minScore || 1;
+
+    pool.forEach((candidate, index) => {
+      if (reranked.length >= 5) return;
+      const normalizedScore = (candidate.finalScore - minScore) / scoreRange;
+      const rankComponent = 1 - index / pool.length;
+      const displaySimilarity = 0.6 * normalizedScore + 0.4 * rankComponent;
+      candidate.displaySimilarity = Math.min(Math.max(displaySimilarity, 0), 1);
       reranked.push(candidate);
       const artistKey = (candidate.artist_name || '').toLowerCase();
       usedArtists.add(artistKey);
-    }
+    });
 
     const top = reranked;
     const metadata = token ? await getTrackMetadata(top.map((t) => t.track_id), token) : [];
@@ -451,7 +494,7 @@ exports.handler = async (event) => {
           artist: details.artist || item.artist_name,
           cover,
           genre: item.genre,
-          similarity: Number(item.similarity.toFixed(3))
+          similarity: Number(item.displaySimilarity?.toFixed(3) || item.similarity.toFixed(3))
         };
       })
     );
