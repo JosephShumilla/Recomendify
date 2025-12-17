@@ -10,10 +10,15 @@ import sorting
 
 class recommender:
     def __init__(self, playlist_link, sort='heap'):
-       # Retrieve your client ID and client secret from environment variables
+        # Retrieve your client ID and client secret from environment variables
         c_id = os.getenv("SPOTIFY_CLIENT_ID")
         c_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
         c_uri = os.getenv("SPOTIFY_REDIRECT_URI")
+
+        if not c_id or not c_secret:
+            raise ValueError(
+                "Missing Spotify credentials. Export SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET before starting the server."
+            )
         if not c_uri:
             raise ValueError(
                 "Missing SPOTIFY_REDIRECT_URI. Set it to the exact redirect URI registered in your Spotify app (e.g., http://127.0.0.1:3000/callback)."
@@ -37,8 +42,13 @@ class recommender:
         # Tries to get the playlist from the spotify API
         try:
             self.target = self.sp.playlist(playlist_id)
-        except spotipy.SpotifyException as e:
-            self.target = 'failure' 
+        except spotipy.SpotifyException as exc:
+            status = getattr(exc, "http_status", None)
+            if status == 403:
+                raise PermissionError(
+                    "Spotify returned 403 (forbidden) while reading the playlist. Ensure the playlist is public or authorize with playlist-read-private scope."
+                ) from exc
+            raise ValueError(f"Spotify API error while reading playlist: {exc}") from exc
 
     def get_recommendations(self) -> list:
         # Exits if playlist is empty

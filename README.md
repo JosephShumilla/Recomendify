@@ -26,6 +26,10 @@ The server listens on port `5500`. Open `http://localhost:5500` in your browser 
 
 The preprocessed dataset used for similarity calculations lives at `data/small_data.csv`, and static assets are served from `static/`.
 
+## Troubleshooting
+
+- If the server responds with **403 Forbidden**, either make sure the playlist is public or re-authorize the app with the `playlist-read-private` scope by visiting the login URL printed by Spotipy. Private playlists need an authenticated session with that scope to be readable.
+
 # References
 
 Here is the [link](https://www.kaggle.com/datasets/amitanshjoshi/spotify-1million-tracks) to the original dataset of Spotify tracks

@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
+import spotipy
 from recommend import recommender
 
 app = Flask(__name__, static_folder="./static")
@@ -20,6 +21,13 @@ def process_data():
         result = recommendation.get_recommendations()
 
         return jsonify({'recommendations': result})
+    except PermissionError as exc:
+        return jsonify({'error': str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except spotipy.SpotifyException as exc:
+        status_code = getattr(exc, 'http_status', 400) or 400
+        return jsonify({'error': str(exc)}), status_code
     except Exception as exc:  # noqa: BLE001 - surface error details to the client
         return jsonify({'error': str(exc)}), 400
 
