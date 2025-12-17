@@ -65,6 +65,8 @@ function loadDataset() {
       artist_name: item.artist_name,
       track_name: item.track_name,
       genre: item.genre,
+      popularity: Number(item.popularity) || 0,
+      year: Number(item.year) || 0,
       featureVector
     };
   });
@@ -267,14 +269,39 @@ exports.handler = async (event) => {
     }
 
     const playlistVector = buildPlaylistVector(playlistTracks, dataset.minMax);
+    const playlistIds = new Set(playlistTracks.map((track) => track.track_id));
+    const avgPopularity =
+      playlistTracks.reduce((sum, track) => sum + (Number(track.popularity) || 0), 0) /
+      playlistTracks.length;
 
-    const scored = dataset.normalized
+    const genreCounts = playlistTracks.reduce((acc, track) => {
+      const genre = track.genre || 'unknown';
+      acc.set(genre, (acc.get(genre) || 0) + 1);
+      return acc;
+    }, new Map());
+
+    const preferredGenres = Array.from(genreCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([genre]) => genre);
+
+    const genreFiltered = dataset.normalized.filter((item) => {
+      if (!preferredGenres.length) return true;
+      return preferredGenres.includes(item.genre) || preferredGenres.includes('unknown');
+    });
+    const candidates = genreFiltered.length ? genreFiltered : dataset.normalized;
+
+    const scored = candidates
+      .filter((item) => !playlistIds.has(item.track_id))
       .map((item) => {
         const similarity = cosineSimilarity(item.featureVector, playlistVector);
-        const genreBonus = playlistTracks.some((track) => track.genre === item.genre)
-          ? 0.05
-          : 0;
-        const adjustedSimilarity = Math.min(similarity + genreBonus, 1);
+
+        const genreBoost = preferredGenres.includes(item.genre) ? 1.1 : 0.9;
+        const popDelta = Math.min(Math.abs((item.popularity || 0) - avgPopularity) / 100, 0.5);
+        const popWeight = 1 - popDelta; // closeness to playlist popularity
+
+        const blended = similarity * 0.8 + popWeight * 0.2;
+        const adjustedSimilarity = Math.min(Math.max(blended * genreBoost, 0), 1);
         return { ...item, similarity: adjustedSimilarity };
       })
       .sort((a, b) => b.similarity - a.similarity);

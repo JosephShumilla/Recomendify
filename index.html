@@ -10,38 +10,51 @@
   <main class="page">
     <header class="page__header">
       <div class="logo">Recommendify</div>
-      <p class="subtitle">Paste a Spotify playlist link to get personalized track picks.</p>
-    </header>
+      <div class="hero">
+        <div>
+          <p class="pill">Spotify smart picks</p>
+          <h1>Drop a playlist link. Get fresh tracks.</h1>
+          <p class="subtitle">We read the vibe of your playlist and surface songs that actually fit. No clutter, just recommendations you can send straight to your queue.</p>
+          <ul class="benefits">
+            <li>Understands your top genres and energy</li>
+            <li>Filters out songs you already added</li>
+            <li>Shows similarity at a glance</li>
+          </ul>
+        </div>
+        <div class="glass card">
+          <h2 class="card__title">Start with your playlist</h2>
+          <form id="playlist-form">
+            <label for="playlist-url" class="label">Playlist URL</label>
+            <input
+              type="text"
+              class="input-space"
+              name="playlist-url"
+              id="playlist-url"
+              placeholder="https://open.spotify.com/playlist/..."
+              autofocus
+            >
 
-    <form id="playlist-form" class="card">
-      <label for="playlist-url" class="label">Playlist URL</label>
-      <input
-        type="text"
-        class="input-space"
-        name="playlist-url"
-        id="playlist-url"
-        placeholder="https://open.spotify.com/playlist/..."
-        autofocus
-      >
+            <div class="form-row">
+              <label for="sort-method" class="label">Sort method</label>
+              <div class="form-row__controls">
+                <select id="sort-method" aria-label="Sort method">
+                  <option value="heap">Heap</option>
+                  <option value="merge">Merge</option>
+                </select>
+                <button type="submit">Get picks</button>
+              </div>
+            </div>
 
-      <div class="form-row">
-        <label for="sort-method" class="label">Sort method</label>
-        <div class="form-row__controls">
-          <select id="sort-method" aria-label="Sort method">
-            <option value="heap">Heap</option>
-            <option value="merge">Merge</option>
-          </select>
-          <button type="submit">Go</button>
+            <div id="instructions" class="note">
+              <h3>How to grab the link</h3>
+              <p>Open Spotify in your browser, click a playlist, and copy the URL from the address bar. Paste it here, choose your sorting flavor, and hit Get picks.</p>
+            </div>
+
+            <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+          </form>
         </div>
       </div>
-
-      <div id="instructions" class="note">
-        <h2>Instructions</h2>
-        <p>Open Spotify Web Player, copy the playlist link from the browser address bar (not the share menu), paste it above, then pick a sorting algorithm.</p>
-      </div>
-
-      <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
-    </form>
+    </header>
 
     <div id="spinner-container" aria-live="polite">
       <div id="spinner" role="status" aria-label="Loading"></div>
