@@ -404,10 +404,12 @@ exports.handler = async (event) => {
 
     const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.2 || idx === 0);
 
+    const primaryGenreSet = new Set(primaryGenres.map((g) => g.genre));
+
     const strictGenreMatches = dataset.normalized.filter((item) => {
       if (!primaryGenres.length) return true;
       const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
-      return primaryGenres.some((g) => g.genre === itemGenre);
+      return primaryGenreSet.has(itemGenre);
     });
 
     const candidates = strictGenreMatches.length >= 10 ? strictGenreMatches : dataset.normalized;
@@ -429,7 +431,8 @@ exports.handler = async (event) => {
 
         const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
         const genreWeight = primaryGenres.find((g) => g.genre === itemGenre)?.weight || 0;
-        const genreBoost = 0.85 + Math.min(genreWeight * 1.2, 0.7);
+        const genreMatchBoost = 1 + Math.min(genreWeight * 0.6, 0.35);
+        const genrePenalty = primaryGenreSet.size && !primaryGenreSet.has(itemGenre) ? 0.45 : 1;
 
         const popDelta = Math.min(
           Math.abs((item.popularity || 0) - avgPopularity) / 100,
@@ -441,13 +444,13 @@ exports.handler = async (event) => {
           ? 0.9
           : 1;
 
-        const jitter = rand() * 0.03;
+        const jitter = rand() * 0.02;
 
-        const blended = featureScore * 0.75 + popWeight * 0.15 + genreBoost * 0.08 + jitter;
-        const adjustedSimilarity = Math.min(
-          Math.max(blended * artistPenalty, 0),
-          1
-        );
+        const blended =
+          (featureScore * 0.82 + meanSim * 0.08 + popWeight * 0.08 + jitter) *
+            genrePenalty +
+          genreMatchBoost * 0.02;
+        const adjustedSimilarity = Math.min(Math.max(blended * artistPenalty, 0), 1);
         return { ...item, similarity: adjustedSimilarity, featureScore, maxSim, avgSim, meanSim };
       })
       .sort((a, b) => b.similarity - a.similarity);
@@ -468,13 +471,15 @@ exports.handler = async (event) => {
     const finalScores = pool.map((item) => item.finalScore);
     const minScore = Math.min(...finalScores);
     const maxScore = Math.max(...finalScores);
-    const scoreRange = maxScore - minScore || 1;
+    const scoreRange = Math.max(0.12, maxScore - minScore || 0);
 
     pool.forEach((candidate, index) => {
       if (reranked.length >= 5) return;
       const normalizedScore = (candidate.finalScore - minScore) / scoreRange;
       const rankComponent = 1 - index / pool.length;
-      const displaySimilarity = 0.6 * normalizedScore + 0.4 * rankComponent;
+      const baseSignal = Math.max(candidate.maxSim, candidate.meanSim, candidate.featureScore);
+      const blendedSignal = 0.55 * baseSignal + 0.25 * normalizedScore + 0.2 * rankComponent;
+      const displaySimilarity = 0.8 + Math.min(Math.max(blendedSignal, 0), 1) * 0.2;
       candidate.displaySimilarity = Math.min(Math.max(displaySimilarity, 0), 1);
       reranked.push(candidate);
       const artistKey = (candidate.artist_name || '').toLowerCase();
