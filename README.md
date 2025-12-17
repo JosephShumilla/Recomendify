@@ -4,9 +4,7 @@ This repository is structured to deploy the Spotify playlist recommender to Netl
 
 ## Prerequisites
 
-* Python 3.9+ (available as `python3`; the Netlify Function shell-outs to it)
-* [Netlify CLI](https://docs.netlify.com/cli/get-started/) (`npm install -g netlify-cli`)
-* Spotify API credentials with the `playlist-read-private` scope enabled
+
 
 ## Local setup and testing
 
@@ -14,7 +12,7 @@ This repository is structured to deploy the Spotify playlist recommender to Netl
    ```bash
    pip install -r requirements.txt
    ```
-2. Export your Spotify credentials (replace with your own values). Do **not** include parentheses—pass the raw values (quotes are optional unless your secret contains spaces):
+
    ```bash
    export SPOTIFY_CLIENT_ID="your-client-id"
    export SPOTIFY_CLIENT_SECRET="your-client-secret"
@@ -28,8 +26,7 @@ This repository is structured to deploy the Spotify playlist recommender to Netl
    ```bash
    netlify dev
    ```
-   This serves the static site from `public/` and mounts the `recommendation` Netlify Function at `/.netlify/functions/recommendation`. Open the printed URL (usually `http://localhost:8888`) in your browser, paste a Spotify playlist URL, and submit to verify recommendations flow end-to-end.
-   *If you see a 404 for `/.netlify/functions/recommendation`, ensure `python3` is installed and on your PATH so the JavaScript wrapper can invoke the backend.*
+
 
 ## Deploying to Netlify
 
