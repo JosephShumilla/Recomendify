@@ -406,14 +406,14 @@ exports.handler = async (event) => {
       playlistTracks.reduce((sum, track) => sum + (Number(track.popularity) || 0), 0) /
       playlistTracks.length;
 
-    const genreCounts = playlistTracks.reduce((acc, track) => {
-      const genres = asGenreArray(track.genre).map((g) => normalizeGenreLabel(g));
-      const weight = 1 / Math.max(genres.length, 1);
-      genres.forEach((genre) => {
-        acc.set(genre, (acc.get(genre) || 0) + weight);
-      });
-      return acc;
-    }, new Map());
+  const genreCounts = playlistTracks.reduce((acc, track) => {
+    const genres = asGenreArray(track.genre).map((g) => normalizeGenreLabel(g));
+    const weight = 1 / Math.max(genres.length, 1);
+    genres.forEach((genre) => {
+      acc.set(genre, (acc.get(genre) || 0) + weight);
+    });
+    return acc;
+  }, new Map());
 
     let totalTracks = playlistTracks.length || 1;
     if (!genreCounts.size) {
@@ -436,7 +436,7 @@ exports.handler = async (event) => {
       .sort((a, b) => b[1] - a[1])
       .map(([genre, count]) => ({ genre, weight: count / totalTracks }));
 
-    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.16 || idx < 2);
+    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.14 || idx < 2);
 
     const primaryGenreSet = new Set(primaryGenres.map((g) => g.genre));
 
@@ -446,8 +446,13 @@ exports.handler = async (event) => {
       return primaryGenreSet.has(itemGenre);
     });
 
-    // Keep a broader pool for diversity, but strongly prefer primary-genre candidates
-    const candidates = strictGenreMatches.length >= 8 ? strictGenreMatches : dataset.normalized;
+    // Keep a very small escape hatch for playlists with sparse genres while favoring strict matches
+    const candidates = strictGenreMatches.length >= 5
+      ? strictGenreMatches
+      : dataset.normalized.filter((item) => {
+          const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
+          return primaryGenreSet.has(itemGenre) || preferredGenres.slice(0, 3).some((g) => g.genre === itemGenre);
+        });
 
     const rand = createSeededRandom(playlistId);
 
@@ -463,16 +468,16 @@ exports.handler = async (event) => {
           : 0;
         const meanSim = cosineSimilarity(item.featureVector, playlistMean);
 
-        // Prioritize genre alignment heavily, with a softer fallback when no genre info exists
+        // Prioritize genre alignment heavily, with a tighter clamp against off-genre tracks
         const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
         const genreWeight = primaryGenres.find((g) => g.genre === itemGenre)?.weight || 0;
         const genreAlignment = primaryGenreSet.has(itemGenre)
-          ? 0.72 + genreWeight * 0.28
+          ? 0.82 + genreWeight * 0.18
           : primaryGenres.length
-          ? 0.12
+          ? 0.05
           : 0.4;
 
-        const featureScore = maxSim * 0.45 + avgSim * 0.25 + meanSim * 0.3;
+        const featureScore = maxSim * 0.5 + avgSim * 0.2 + meanSim * 0.3;
 
         const popDelta = Math.min(
           Math.abs((item.popularity || 0) - avgPopularity) / 100,
@@ -487,10 +492,10 @@ exports.handler = async (event) => {
         const jitter = rand() * 0.01;
 
         const blended =
-          featureScore * 0.52 +
-          genreAlignment * 0.35 +
-          popWeight * 0.09 +
-          meanSim * 0.04 +
+          featureScore * 0.42 +
+          genreAlignment * 0.45 +
+          popWeight * 0.08 +
+          meanSim * 0.05 +
           jitter;
 
         const adjustedSimilarity = Math.min(
@@ -529,8 +534,8 @@ exports.handler = async (event) => {
         candidate.featureScore,
         candidate.genreAlignment || 0
       );
-      const blendedSignal = 0.5 * baseSignal + 0.35 * normalizedScore + 0.15 * rankComponent;
-      const displaySimilarity = 0.78 + Math.min(Math.max(blendedSignal, 0), 1) * 0.21;
+      const blendedSignal = 0.48 * baseSignal + 0.37 * normalizedScore + 0.15 * rankComponent;
+      const displaySimilarity = 0.82 + Math.min(Math.max(blendedSignal, 0), 1) * 0.17;
       candidate.displaySimilarity = Math.min(Math.max(displaySimilarity, 0), 1);
       reranked.push(candidate);
       const artistKey = (candidate.artist_name || '').toLowerCase();
