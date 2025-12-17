@@ -1,6 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
+// Use global fetch when available (Node 18+), otherwise fall back to node-fetch
+const fetch =
+  typeof globalThis.fetch === 'function'
+    ? globalThis.fetch
+    : (...args) => import('node-fetch').then(({ default: fetchFn }) => fetchFn(...args));
+
 const FEATURES = [
   'danceability',
   'energy',
@@ -26,7 +32,17 @@ function parseCsvRow(row) {
 function loadDataset() {
   if (cachedDataset) return cachedDataset;
 
-  const datasetPath = path.join(__dirname, '../../small_data.csv');
+  const candidatePaths = [
+    path.join(process.cwd(), 'small_data.csv'),
+    path.join(__dirname, '../../small_data.csv'),
+    path.join(__dirname, '../small_data.csv')
+  ];
+
+  const datasetPath = candidatePaths.find((p) => fs.existsSync(p));
+  if (!datasetPath) {
+    throw new Error('Dataset file not found');
+  }
+
   const content = fs.readFileSync(datasetPath, 'utf8').trim();
   const [headerLine, ...lines] = content.split(/\r?\n/);
   const headers = parseCsvRow(headerLine);

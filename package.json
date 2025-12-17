@@ -1,0 +1,9 @@
+{
+  "name": "recomendify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Netlify deployment for playlist recommender",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
