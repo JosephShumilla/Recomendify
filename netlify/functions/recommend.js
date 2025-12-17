@@ -267,6 +267,20 @@ async function getTrackMetadata(trackIds, token) {
   }));
 }
 
+async function fetchOEmbedCover(trackId) {
+  try {
+    const res = await fetch(
+      `https://open.spotify.com/oembed?url=https://open.spotify.com/track/${trackId}`
+    );
+    if (!res.ok) return '';
+    const data = await res.json();
+    return data.thumbnail_url || '';
+  } catch (err) {
+    console.error('Failed to fetch oEmbed cover', err.message);
+    return '';
+  }
+}
+
 function createSeededRandom(seed) {
   let x = 0;
   for (let i = 0; i < seed.length; i += 1) {
@@ -424,16 +438,23 @@ exports.handler = async (event) => {
     const metadata = token ? await getTrackMetadata(top.map((t) => t.track_id), token) : [];
     const metadataMap = new Map(metadata.map((item) => [item.track_id, item]));
 
-    const recommendations = top.map((item) => {
-      const details = metadataMap.get(item.track_id) || {};
-      return {
-        name: details.name || item.track_name,
-        artist: details.artist || item.artist_name,
-        cover: details.cover || '',
-        genre: item.genre,
-        similarity: Number(item.similarity.toFixed(3))
-      };
-    });
+    const recommendations = await Promise.all(
+      top.map(async (item) => {
+        const details = metadataMap.get(item.track_id) || {};
+        let cover = details.cover || '';
+        if (!cover) {
+          cover = await fetchOEmbedCover(item.track_id);
+        }
+
+        return {
+          name: details.name || item.track_name,
+          artist: details.artist || item.artist_name,
+          cover,
+          genre: item.genre,
+          similarity: Number(item.similarity.toFixed(3))
+        };
+      })
+    );
 
     if (sortMethod === 'merge') {
       recommendations.sort((a, b) => b.similarity - a.similarity);
