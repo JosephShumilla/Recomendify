@@ -90,8 +90,13 @@ form.addEventListener('submit', async (event) => {
 
   try {
     const sortMethod = sortField.value;
-    const { recommendations } = await fetchRecommendations(link, sortMethod);
+    const { recommendations, meta } = await fetchRecommendations(link, sortMethod);
     renderRecommendations(recommendations, sortMethod);
+    if (meta?.mode === 'fallback') {
+      showMessage(`Using offline picks: ${meta.reason}. Add Spotify API keys for live results.`);
+    } else {
+      showMessage('Playlist processed. Here are your picks!');
+    }
     setAppState('2');
   } catch (error) {
     console.error(error);

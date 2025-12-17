@@ -71,13 +71,14 @@ function loadDataset() {
     };
   });
 
-  cachedDataset = { normalized, minMax };
+  cachedDataset = { normalized, minMax, raw: entries };
   return cachedDataset;
 }
 
 async function getAccessToken() {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
   if (!clientId || !clientSecret) {
     throw new Error('Missing Spotify credentials');
   }
@@ -184,6 +185,16 @@ async function fetchPlaylistTracks(playlistId, token) {
     .filter(Boolean);
 }
 
+function buildSeededSubset(items, seed, count = 8) {
+  const rand = createSeededRandom(seed);
+  const pool = [...items];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rand() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
+
 function normalizeValue(value, min, max) {
   if (!Number.isFinite(value) || min === max) return 0;
   return (value - min) / (max - min);
@@ -273,15 +284,42 @@ exports.handler = async (event) => {
     }
 
     const playlistId = match[1];
-    const token = await getAccessToken();
     const dataset = loadDataset();
-    const playlistTracks = await fetchPlaylistTracks(playlistId, token);
+
+    let token;
+    let playlistTracks = [];
+    let fallbackReason = '';
+
+    try {
+      token = await getAccessToken();
+      playlistTracks = await fetchPlaylistTracks(playlistId, token);
+    } catch (err) {
+      console.error('Spotify fetch failed, switching to fallback', err.message);
+      fallbackReason = err.message.includes('credentials')
+        ? 'Missing Spotify credentials'
+        : 'Spotify API unavailable';
+    }
 
     if (!playlistTracks.length) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Unable to read playlist tracks' })
-      };
+      if (!fallbackReason) fallbackReason = 'Unable to read playlist tracks';
+      const seeded = buildSeededSubset(dataset.raw, playlistId, 10);
+      playlistTracks = seeded.map((item) => ({
+        track_id: item.track_id,
+        track_name: item.track_name,
+        popularity: Number(item.popularity) || 0,
+        genre: item.genre,
+        danceability: Number(item.danceability),
+        energy: Number(item.energy),
+        loudness: Number(item.loudness),
+        speechiness: Number(item.speechiness),
+        acousticness: Number(item.acousticness),
+        instrumentalness: Number(item.instrumentalness),
+        liveness: Number(item.liveness),
+        valence: Number(item.valence),
+        tempo: Number(item.tempo),
+        cover: '',
+        artist_name: item.artist_name
+      }));
     }
 
     const { normalizedTracks: playlistVectors } = buildPlaylistVectors(
@@ -367,7 +405,7 @@ exports.handler = async (event) => {
     }
 
     const top = reranked;
-    const metadata = await getTrackMetadata(top.map((t) => t.track_id), token);
+    const metadata = token ? await getTrackMetadata(top.map((t) => t.track_id), token) : [];
     const metadataMap = new Map(metadata.map((item) => [item.track_id, item]));
 
     const recommendations = top.map((item) => {
@@ -387,7 +425,10 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ recommendations })
+      body: JSON.stringify({
+        recommendations,
+        meta: fallbackReason ? { mode: 'fallback', reason: fallbackReason } : { mode: 'live' }
+      })
     };
   } catch (error) {
     console.error(error);
