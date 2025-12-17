@@ -2,4 +2,4 @@ spotipy
 pandas
 scikit-learn
 numpy
-TextBlob
+textblob
