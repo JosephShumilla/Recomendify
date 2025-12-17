@@ -436,7 +436,7 @@ exports.handler = async (event) => {
       .sort((a, b) => b[1] - a[1])
       .map(([genre, count]) => ({ genre, weight: count / totalTracks }));
 
-    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.18 || idx === 0);
+    const primaryGenres = preferredGenres.filter((g, idx) => g.weight >= 0.16 || idx < 2);
 
     const primaryGenreSet = new Set(primaryGenres.map((g) => g.genre));
 
@@ -446,7 +446,8 @@ exports.handler = async (event) => {
       return primaryGenreSet.has(itemGenre);
     });
 
-    const candidates = strictGenreMatches.length >= 12 ? strictGenreMatches : dataset.normalized;
+    // Keep a broader pool for diversity, but strongly prefer primary-genre candidates
+    const candidates = strictGenreMatches.length >= 8 ? strictGenreMatches : dataset.normalized;
 
     const rand = createSeededRandom(playlistId);
 
@@ -461,12 +462,17 @@ exports.handler = async (event) => {
           ? similarities.reduce((sum, val) => sum + val, 0) / similarities.length
           : 0;
         const meanSim = cosineSimilarity(item.featureVector, playlistMean);
-        const featureScore = maxSim * 0.5 + avgSim * 0.25 + meanSim * 0.25;
 
+        // Prioritize genre alignment heavily, with a softer fallback when no genre info exists
         const itemGenre = normalizeGenreLabel(item.coarseGenre || item.genre);
         const genreWeight = primaryGenres.find((g) => g.genre === itemGenre)?.weight || 0;
-        const genreMatchBoost = 1 + Math.min(genreWeight * 0.8, 0.45);
-        const genrePenalty = primaryGenreSet.size && !primaryGenreSet.has(itemGenre) ? 0.18 : 1;
+        const genreAlignment = primaryGenreSet.has(itemGenre)
+          ? 0.72 + genreWeight * 0.28
+          : primaryGenres.length
+          ? 0.12
+          : 0.4;
+
+        const featureScore = maxSim * 0.45 + avgSim * 0.25 + meanSim * 0.3;
 
         const popDelta = Math.min(
           Math.abs((item.popularity || 0) - avgPopularity) / 100,
@@ -474,18 +480,24 @@ exports.handler = async (event) => {
         );
         const popWeight = 1 - popDelta; // closeness to playlist popularity
 
-        const artistPenalty = playlistArtists.has((item.artist_name || '').toLowerCase())
-          ? 0.9
-          : 1;
+        const artistName = (item.artist_name || '').toLowerCase();
+        const artistAffinity = playlistArtists.has(artistName) ? 1.12 : 1;
+        const artistDiversityPenalty = playlistArtists.has(artistName) ? 0.95 : 1;
 
         const jitter = rand() * 0.01;
 
         const blended =
-          (featureScore * 0.84 + meanSim * 0.06 + popWeight * 0.08 + jitter) *
-            genrePenalty +
-          genreMatchBoost * 0.02;
-        const adjustedSimilarity = Math.min(Math.max(blended * artistPenalty, 0), 1);
-        return { ...item, similarity: adjustedSimilarity, featureScore, maxSim, avgSim, meanSim };
+          featureScore * 0.52 +
+          genreAlignment * 0.35 +
+          popWeight * 0.09 +
+          meanSim * 0.04 +
+          jitter;
+
+        const adjustedSimilarity = Math.min(
+          Math.max(blended * artistAffinity * artistDiversityPenalty, 0),
+          1
+        );
+        return { ...item, similarity: adjustedSimilarity, featureScore, maxSim, avgSim, meanSim, genreAlignment };
       })
       .sort((a, b) => b.similarity - a.similarity);
 
@@ -505,15 +517,20 @@ exports.handler = async (event) => {
     const finalScores = pool.map((item) => item.finalScore);
     const minScore = Math.min(...finalScores);
     const maxScore = Math.max(...finalScores);
-    const scoreRange = Math.max(0.08, maxScore - minScore || 0);
+    const scoreRange = Math.max(0.05, maxScore - minScore || 0);
 
     pool.forEach((candidate, index) => {
       if (reranked.length >= 5) return;
       const normalizedScore = (candidate.finalScore - minScore) / scoreRange;
       const rankComponent = 1 - index / pool.length;
-      const baseSignal = Math.max(candidate.maxSim, candidate.meanSim, candidate.featureScore);
-      const blendedSignal = 0.45 * baseSignal + 0.35 * normalizedScore + 0.2 * rankComponent;
-      const displaySimilarity = 0.6 + Math.min(Math.max(blendedSignal, 0), 1) * 0.39;
+      const baseSignal = Math.max(
+        candidate.maxSim,
+        candidate.meanSim,
+        candidate.featureScore,
+        candidate.genreAlignment || 0
+      );
+      const blendedSignal = 0.5 * baseSignal + 0.35 * normalizedScore + 0.15 * rankComponent;
+      const displaySimilarity = 0.78 + Math.min(Math.max(blendedSignal, 0), 1) * 0.21;
       candidate.displaySimilarity = Math.min(Math.max(displaySimilarity, 0), 1);
       reranked.push(candidate);
       const artistKey = (candidate.artist_name || '').toLowerCase();
