@@ -1,0 +1,13 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  included_files = ["netlify/functions/backend/data/small_data.csv"]
+  node_bundler = "esbuild"
+
+[functions.recommendation]
+  # Ensure the backend package is included with the function bundle
+  included_files = [
+    "netlify/functions/backend/**"
+  ]
