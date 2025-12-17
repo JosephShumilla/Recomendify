@@ -13,7 +13,11 @@ class recommender:
        # Retrieve your client ID and client secret from environment variables
         c_id = os.getenv("SPOTIFY_CLIENT_ID")
         c_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-        c_uri = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback")
+        c_uri = os.getenv("SPOTIFY_REDIRECT_URI")
+        if not c_uri:
+            raise ValueError(
+                "Missing SPOTIFY_REDIRECT_URI. Set it to the exact redirect URI registered in your Spotify app (e.g., http://127.0.0.1:3000/callback)."
+            )
         scope = "playlist-read-private"
         cache_path = os.path.join(os.getcwd(), "token.txt")
         # Instantiates the Spotipy instance used for getting playlist info

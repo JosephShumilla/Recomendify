@@ -7,12 +7,12 @@ pip install -r requirements.txt
 ```
 
 ## 2) Set your Spotify API credentials
-Create a free [Spotify developer app](https://developer.spotify.com/dashboard/) and add a redirect URI of `http://localhost:8888/callback` (or another URI of your choice). The redirect URI you configure **must match exactly** what you export locally; Spotify will otherwise respond with `invalid_client: Invalid redirect URI`. Then export the credentials in your shell so the backend can authenticate:
+Create a free [Spotify developer app](https://developer.spotify.com/dashboard/) and add a redirect URI that matches what you will run locally. The redirect URI you configure **must match exactly** what you export locally; Spotify will otherwise respond with `invalid_client: Invalid redirect URI`. For example, if your app is registered with `http://127.0.0.1:3000/callback`, export the same value before running the server. Then export the credentials in your shell so the backend can authenticate:
 
 ```bash
 export SPOTIFY_CLIENT_ID="<your_client_id>"
 export SPOTIFY_CLIENT_SECRET="<your_client_secret>"
-export SPOTIFY_REDIRECT_URI="http://localhost:8888/callback"
+export SPOTIFY_REDIRECT_URI="http://127.0.0.1:3000/callback"
 ```
 
 ## 3) Run the web server
